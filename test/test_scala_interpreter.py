@@ -64,6 +64,19 @@ def test_spark_rdd(scala_kernel):
     assert result.strip().endswith(str(sum(range(10))))
 
 
+def test_spark_anonmeth(scala_kernel):
+    """Simple test to ensure we can do RDD things"""
+    result = scala_kernel.interpret(
+        'val anonmeth_x = sc.parallelize(List("spark", "rdd", "example", "sample", "example"), 3)')
+    result = scala_kernel.interpret("Thread.currentThread.getContextClassLoader")
+    cl = scala_kernel.last_result()
+    result = scala_kernel.interpret(
+        'val anonmeth_y = anonmeth_x.map(r => (r, 1))')
+    result = scala_kernel.interpret("anonmeth_y.collect")
+
+    assert result.strip().endswith(str(sum(range(10))))
+
+
 def test_spark_dataset(scala_kernel):
     scala_kernel.interpret("""
     case class DatasetTest(y: Int)

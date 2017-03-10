@@ -72,26 +72,33 @@ def initialize_scala_interpreter():
     # initialization in certain cases, there's an initialization order issue that prevents
     # this from being set after SparkContext is instantiated.
 
-    output_dir = os.path.abspath(tempfile.mkdtemp())
+    Utils = jvm.org.apache.spark.util.Utils
+    root_dir = jconf.getOption("spark.repl.classdir")
+    if root_dir.isDefined():
+        root_dir = root_dir.get()
+    else:
+        root_dir = Utils.getLocalDir(jconf)
 
-    def cleanup():
-        shutil.rmtree(output_dir, True)
-    atexit.register(cleanup)
-    signal.signal(signal.SIGTERM, cleanup)
+    output_dir = Utils.createTempDir(root_dir, "repl")
 
-    jconf.set("spark.repl.class.outputDir", output_dir)
+    jvm.System.setProperty("spark.repl.class.outputDir", output_dir.getAbsolutePath())
+    jconf.set("spark.repl.class.outputDir", output_dir.getAbsolutePath())
+
     if (execUri is not None):
-      jconf.set("spark.executor.uri", execUri)
+      jvm.System.setProperty("spark.executor.uri", execUri)
 
     jars = jvm.org.apache.spark.util.Utils.getUserJars(jconf, True).mkString(":")
     interpArguments = spark_jvm_helpers.to_scala_list(
-        ["-Yrepl-class-based", "-Yrepl-outdir", output_dir,
+        ["-Yrepl-class-based", "-Yrepl-outdir", output_dir.getAbsolutePath(),
          "-classpath", jars
          ]
     )
 
     settings = jvm.scala.tools.nsc.Settings()
     settings.processArguments(interpArguments, True)
+
+    spark_class_loader = jvm.Thread.currentThread().getContextClassLoader()
+    settings.embeddedDefaults(spark_class_loader)
 
     # Since we have already instantiated our spark context on the python side, set it in the Main repl class as well
     Main = jvm.org.apache.spark.repl.Main
